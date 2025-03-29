@@ -278,32 +278,26 @@ function Obstacle({ type, position }: { type: keyof typeof OBSTACLES; position: 
     }, [scene]);
 
     return (
-      <>
-        <primitive 
-          object={clonedScene}
-          position={[position.x, position.y + config.yOffset, position.z]}
-          scale={[config.scale.x, config.scale.y, config.scale.z]}
-        />
-        <CollisionBox min={obstacleMin} max={obstacleMax} color="#ff0000" />
-      </>
+      <primitive 
+        object={clonedScene}
+        position={[position.x, position.y + config.yOffset, position.z]}
+        scale={[config.scale.x, config.scale.y, config.scale.z]}
+      />
     );
   }
   
   return (
-    <>
-      <mesh 
-        position={[position.x, position.y + config.yOffset, position.z]}
-        scale={[config.scale.x, config.scale.y, config.scale.z]}
-      >
-        {type === 'bump' && <sphereGeometry args={[0.5, 8, 8]} />}
-        <meshStandardMaterial 
-          color={type === 'bump' ? '#ffffff' : '#cc0000'}
-          roughness={0.8}
-          metalness={0}
-        />
-      </mesh>
-      <CollisionBox min={obstacleMin} max={obstacleMax} color="#ff0000" />
-    </>
+    <mesh 
+      position={[position.x, position.y + config.yOffset, position.z]}
+      scale={[config.scale.x, config.scale.y, config.scale.z]}
+    >
+      {type === 'bump' && <sphereGeometry args={[0.5, 8, 8]} />}
+      <meshStandardMaterial 
+        color={type === 'bump' ? '#ffffff' : '#cc0000'}
+        roughness={0.8}
+        metalness={0}
+      />
+    </mesh>
   );
 }
 
@@ -475,11 +469,6 @@ const Player = forwardRef<THREE.Group, { crashed: boolean; onCrashComplete?: () 
   return (
     <group ref={ref} position={[0, 2, 0]} rotation={[rotation.x, rotation.y + Math.PI, rotation.z]}>
       <primitive object={scene.clone()} scale={[2, 2, 2]} />
-      <CollisionBox
-        min={new THREE.Vector3(-1.2 / 2, -3, -1.0 / 2)}
-        max={new THREE.Vector3(1.2 / 2, 2, 1.0 / 2)}
-        color="#0000ff"
-      />
     </group>
   );
 });
