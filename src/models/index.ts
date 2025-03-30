@@ -6,7 +6,8 @@ export const MODEL_URLS = {
   tree: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/tree.glb',
   skier: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/skier.glb',
   rock: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/rock.glb',
-  pole: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/pole.glb'
+  pole: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/pole.glb',
+  yeti: '/snow-yeti.glb'
 } as const;
 
 // Preload models

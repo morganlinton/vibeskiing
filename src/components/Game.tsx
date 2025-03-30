@@ -117,6 +117,20 @@ const OBSTACLES = {
   },
 } as const;
 
+// --- Define Yeti Properties ---
+const YETI_CONFIG = {
+  scale: { x: 8, y: 8, z: 8 }, 
+  yOffset: 3, 
+  collisionWidth: 2.5, // Estimated collision width - might need adjustment
+  collisionHeight: 3, // Estimated collision height - might need adjustment
+  collisionDepth: 2, // Estimated collision depth - might need adjustment
+  speed: 35, // Horizontal movement speed
+  spawnChance: 0.5, // Chance per second to spawn
+  spawnDistance: 25, // How far ahead of the player the yeti spawns
+  boundsX: 60, // Horizontal limit before despawning
+};
+// --- End Yeti Properties ---
+
 interface Obstacle {
   type: keyof typeof OBSTACLES;
   position: THREE.Vector3;
@@ -198,6 +212,61 @@ function checkCollision(playerPosition: THREE.Vector3, obstacle: Obstacle): bool
     playerMin.z <= obstacleMax.z
   );
 }
+
+// --- Add Yeti Collision Check Function ---
+function checkYetiCollision(
+  playerPosition: THREE.Vector3,
+  yetiPosition: THREE.Vector3 | null
+): boolean {
+  if (!yetiPosition) return false;
+
+  // Player collision box dimensions (match the ones used in GameScene)
+  const playerWidth = 1.2;
+  const playerDepth = 1.0;
+  const playerHeight = 6.0;
+  const playerBaseOffsetY = -3; // Base Y offset used in checkCollision logic
+  const playerCollisionMinY = playerPosition.y + playerBaseOffsetY;
+  const playerCollisionMaxY = playerPosition.y + playerHeight - 2;
+
+  const playerMin = new THREE.Vector3(
+    playerPosition.x - playerWidth / 2,
+    playerCollisionMinY,
+    playerPosition.z - playerDepth / 2
+  );
+  const playerMax = new THREE.Vector3(
+    playerPosition.x + playerWidth / 2,
+    playerCollisionMaxY,
+    playerPosition.z + playerDepth / 2
+  );
+
+  // Yeti collision box dimensions - Use updated Y_Offset
+  const yetiWidth = YETI_CONFIG.collisionWidth * (YETI_CONFIG.scale.x / 3); // Scale collision box with model
+  const yetiHeight = YETI_CONFIG.collisionHeight * (YETI_CONFIG.scale.y / 3);
+  const yetiDepth = YETI_CONFIG.collisionDepth * (YETI_CONFIG.scale.z / 3);
+  const yetiBaseY = YETI_CONFIG.yOffset; // Use the new Y offset
+
+  const yetiMin = new THREE.Vector3(
+    yetiPosition.x - yetiWidth / 2,
+    yetiPosition.y + yetiBaseY,
+    yetiPosition.z - yetiDepth / 2
+  );
+  const yetiMax = new THREE.Vector3(
+    yetiPosition.x + yetiWidth / 2,
+    yetiPosition.y + yetiBaseY + yetiHeight,
+    yetiPosition.z + yetiDepth / 2
+  );
+
+  // Simple AABB collision check
+  return (
+    playerMax.x >= yetiMin.x &&
+    playerMin.x <= yetiMax.x &&
+    playerMax.y >= yetiMin.y &&
+    playerMin.y <= yetiMax.y &&
+    playerMax.z >= yetiMin.z &&
+    playerMin.z <= yetiMax.z
+  );
+}
+// --- End Yeti Collision Check ---
 
 function Snow() {
   const count = 5000;
@@ -309,6 +378,41 @@ function Obstacle({ type, position }: { type: keyof typeof OBSTACLES; position: 
   );
 }
 
+// --- Add Yeti Component ---
+function Yeti({ position }: { position: THREE.Vector3 }) {
+  const { scene } = useGLTF(MODEL_URLS.yeti);
+
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone();
+    clone.traverse((child: THREE.Object3D) => {
+      if (child instanceof THREE.Mesh) {
+        child.material = child.material.clone();
+        child.material.toneMapped = false;
+        // Optional: Tint the yeti blueish?
+        // if (child.material instanceof THREE.MeshStandardMaterial) {
+        //   child.material.color.set('#a0c0ff');
+        // }
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [scene]);
+
+  return (
+    <primitive
+      object={clonedScene}
+      position={[position.x, position.y + YETI_CONFIG.yOffset, position.z]}
+      scale={[YETI_CONFIG.scale.x, YETI_CONFIG.scale.y, YETI_CONFIG.scale.z]} // Use updated scale
+      // Rotate yeti to face sideways if needed (adjust Y rotation)
+      // rotation={[0, Math.PI / 2, 0]}
+      castShadow
+      receiveShadow
+    />
+  );
+}
+// --- End Yeti Component ---
+
 function Terrain({
   playerZ,
   obstacles,
@@ -350,6 +454,7 @@ function Terrain({
       visibleSegments.current.push(i);
     }
     setObstacles(initialSegments);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setObstacles]);
 
   useFrame(() => {
@@ -681,6 +786,15 @@ const Player = forwardRef<THREE.Group, { crashed: boolean; onCrashComplete: () =
   }
 );
 
+// --- Define Yeti State Type ---
+interface YetiState {
+  active: boolean;
+  position: THREE.Vector3 | null;
+  direction: 'left' | 'right' | null; // Direction it's moving
+  spawnZ: number | null; // Z position where it was spawned
+}
+// --- End Yeti State Type ---
+
 function GameScene({ 
   setScore, 
   setSpeed, 
@@ -703,7 +817,17 @@ function GameScene({
   const [obstacles, setObstacles] = useState<Obstacle[]>([]);
   const clock = useRef(new THREE.Clock()).current;
   const [showCollisionBox, setShowCollisionBox] = useState(false);
-  
+
+  // --- Add Yeti State ---
+  const [yetiState, setYetiState] = useState<YetiState>({
+    active: false,
+    position: null,
+    direction: null,
+    spawnZ: null,
+  });
+  const yetiRef = useRef(new THREE.Vector3()); // Ref for mutable position updates
+  // --- End Yeti State ---
+
   useEffect(() => {
     if (gameOver) {
       setCrashed(true);
@@ -763,12 +887,59 @@ function GameScene({
       cameraRef.current.lookAt(playerPosition.x, playerPosition.y, playerPosition.z);
     }
     
+    // --- Yeti Spawning Logic ---
+    if (!yetiState.active && !gameOver) {
+      // Spawn randomly based on time and chance
+      if (Math.random() < YETI_CONFIG.spawnChance * deltaTime) {
+        const direction = Math.random() < 0.5 ? 'left' : 'right';
+        const startX = direction === 'left' ? YETI_CONFIG.boundsX : -YETI_CONFIG.boundsX;
+        const spawnZ = playerPosition.z - YETI_CONFIG.spawnDistance;
+        const startY = 0; // Ground level
+
+        yetiRef.current.set(startX, startY, spawnZ); // Update the ref immediately
+        setYetiState({
+          active: true,
+          position: yetiRef.current.clone(), // Clone ref into state
+          direction: direction,
+          spawnZ: spawnZ,
+        });
+      }
+    }
+    // --- End Yeti Spawning Logic ---
+
+    // --- Yeti Movement Logic ---
+    if (yetiState.active && yetiState.position && yetiState.direction) {
+      const moveX = YETI_CONFIG.speed * deltaTime * (yetiState.direction === 'left' ? -1 : 1);
+      yetiRef.current.x += moveX; // Update the ref
+
+      // Keep Z constant at spawn depth
+      yetiRef.current.z = yetiState.spawnZ!;
+
+      // Update state position (less frequent updates might be okay if needed)
+      setYetiState(prev => ({ ...prev, position: yetiRef.current.clone() }));
+
+      // Despawn if out of bounds
+      if (
+        (yetiState.direction === 'left' && yetiRef.current.x < -YETI_CONFIG.boundsX) ||
+        (yetiState.direction === 'right' && yetiRef.current.x > YETI_CONFIG.boundsX)
+      ) {
+        setYetiState({ active: false, position: null, direction: null, spawnZ: null });
+      }
+    }
+    // --- End Yeti Movement Logic ---
+
     // Check for collisions
     for (const obstacle of obstacles) {
       if (checkCollision(playerPosition, obstacle)) {
         setGameOver(true);
         return;
       }
+    }
+
+    // Check moving yeti
+    if (yetiState.active && checkYetiCollision(playerPosition, yetiRef.current)) {
+       setGameOver(true);
+       return;
     }
     
     // Update score and speed
@@ -807,13 +978,33 @@ function GameScene({
   );
   // --- End of collision box calculation ---
 
+  // --- Yeti Collision Box Calculation (for visualization) ---
+  let yetiCollisionBox = null;
+  if (showCollisionBox && yetiState.active && yetiState.position) {
+    const yetiWidth = YETI_CONFIG.collisionWidth * (YETI_CONFIG.scale.x / 3); // Scale collision box with model
+    const yetiHeight = YETI_CONFIG.collisionHeight * (YETI_CONFIG.scale.y / 3);
+    const yetiDepth = YETI_CONFIG.collisionDepth * (YETI_CONFIG.scale.z / 3);
+    const yetiBaseY = YETI_CONFIG.yOffset;
+
+    const yetiMin = new THREE.Vector3(
+      yetiState.position.x - yetiWidth / 2,
+      yetiState.position.y + yetiBaseY,
+      yetiState.position.z - yetiDepth / 2
+    );
+    const yetiMax = new THREE.Vector3(
+      yetiState.position.x + yetiWidth / 2,
+      yetiState.position.y + yetiBaseY + yetiHeight,
+      yetiState.position.z + yetiDepth / 2
+    );
+    yetiCollisionBox = <CollisionBox min={yetiMin} max={yetiMax} color="red" />;
+  }
+  // --- End Yeti Collision Box Calculation ---
 
   // Log player bounds if state is true
   if (showCollisionBox) {
     // Log the bounds being used for the VISUAL box
     console.log("Player Visual Bounds:", { min: playerCollisionMin, max: playerCollisionMax });
   }
-  // console.log("Current showCollisionBox state in render:", showCollisionBox);
 
   return (
     <>
@@ -856,6 +1047,16 @@ function GameScene({
         setObstacles={setObstacles}
         showCollisionBox={showCollisionBox}
       />
+
+      {/* --- Render Yeti Collision Box --- */}
+      {yetiCollisionBox}
+      {/* --- End Render Yeti Collision Box --- */}
+
+      {/* --- Render Yeti --- */}
+      {yetiState.active && yetiState.position && (
+        <Yeti position={yetiState.position} />
+      )}
+      {/* --- End Render Yeti --- */}
     </>
   );
 }
