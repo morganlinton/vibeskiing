@@ -118,9 +118,9 @@ const OBSTACLES = {
 } as const;
 
 // --- Define Yeti Properties ---
-const BASE_YETI_SPEED = 36; // Speed when player speed is 1
-const BASE_YETI_SPAWN_DISTANCE = 18; // Distance when player speed is 1
-const BASE_YETI_SPAWN_CHANCE = 0.5; // Base chance per second
+const BASE_YETI_SPEED = 23;  
+const BASE_YETI_SPAWN_DISTANCE = 12; 
+const BASE_YETI_SPAWN_CHANCE = 0.1; 
 
 const YETI_STATIC_CONFIG = { // Renamed to hold non-dynamic properties
   scale: { x: 6, y: 6, z: 6 },
@@ -1074,7 +1074,7 @@ function GameScene({
 
 function Game() {
   const [score, setScore] = useState(0);
-  const [speed, setSpeed] = useState(1);
+  const [speed, setSpeed] = useState(2); // set initial speed to 2
   const [time, setTime] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
