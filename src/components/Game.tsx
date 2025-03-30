@@ -118,16 +118,17 @@ const OBSTACLES = {
 } as const;
 
 // --- Define Yeti Properties ---
-const YETI_CONFIG = {
-  scale: { x: 7, y: 7, z: 7 }, 
-  yOffset: 3, 
-  collisionWidth: 2.5, // Estimated collision width - might need adjustment
-  collisionHeight: 3, // Estimated collision height - might need adjustment
-  collisionDepth: 2, // Estimated collision depth - might need adjustment
-  speed: 40, // Horizontal movement speed
-  spawnChance: 0.5, // Chance per second to spawn
-  spawnDistance: 35, // How far ahead of the player the yeti spawns
-  boundsX: 60, // Horizontal limit before despawning
+const BASE_YETI_SPEED = 36; // Speed when player speed is 1
+const BASE_YETI_SPAWN_DISTANCE = 18; // Distance when player speed is 1
+const BASE_YETI_SPAWN_CHANCE = 0.5; // Base chance per second
+
+const YETI_STATIC_CONFIG = { // Renamed to hold non-dynamic properties
+  scale: { x: 6, y: 6, z: 6 },
+  yOffset: 1,
+  collisionWidth: 2.5, // Might need adjustment based on scaled model
+  collisionHeight: 5, // Might need adjustment based on scaled model
+  collisionDepth: 2, // Might need adjustment based on scaled model
+  boundsX: 60, // Horizontal limit before despawning (kept static for now)
 };
 // --- End Yeti Properties ---
 
@@ -239,11 +240,11 @@ function checkYetiCollision(
     playerPosition.z + playerDepth / 2
   );
 
-  // Yeti collision box dimensions - Use updated Y_Offset
-  const yetiWidth = YETI_CONFIG.collisionWidth * (YETI_CONFIG.scale.x / 3); // Scale collision box with model
-  const yetiHeight = YETI_CONFIG.collisionHeight * (YETI_CONFIG.scale.y / 3);
-  const yetiDepth = YETI_CONFIG.collisionDepth * (YETI_CONFIG.scale.z / 3);
-  const yetiBaseY = YETI_CONFIG.yOffset; // Use the new Y offset
+  // Yeti collision box dimensions - Use YETI_STATIC_CONFIG
+  const yetiWidth = YETI_STATIC_CONFIG.collisionWidth; // Use static config
+  const yetiHeight = YETI_STATIC_CONFIG.collisionHeight; // Use static config
+  const yetiDepth = YETI_STATIC_CONFIG.collisionDepth; // Use static config
+  const yetiBaseY = YETI_STATIC_CONFIG.yOffset; // Use static config
 
   const yetiMin = new THREE.Vector3(
     yetiPosition.x - yetiWidth / 2,
@@ -402,8 +403,8 @@ function Yeti({ position }: { position: THREE.Vector3 }) {
   return (
     <primitive
       object={clonedScene}
-      position={[position.x, position.y + YETI_CONFIG.yOffset, position.z]}
-      scale={[YETI_CONFIG.scale.x, YETI_CONFIG.scale.y, YETI_CONFIG.scale.z]} // Use updated scale
+      position={[position.x, position.y + YETI_STATIC_CONFIG.yOffset, position.z]} // Use static config
+      scale={[YETI_STATIC_CONFIG.scale.x, YETI_STATIC_CONFIG.scale.y, YETI_STATIC_CONFIG.scale.z]} // Use static config
       // Rotate yeti to face sideways if needed (adjust Y rotation)
       // rotation={[0, Math.PI / 2, 0]}
       castShadow
@@ -855,9 +856,8 @@ function GameScene({
     const deltaTime = Math.min(clock.getElapsedTime() - (playerRef.current.userData.lastTime || 0), 0.23);
     playerRef.current.userData.lastTime = clock.getElapsedTime();
     
-    // Calculate forward movement
-    const movementSpeed = 20 * speed;
-    
+    // --- Player Movement Logic ---
+    const movementSpeed = 10 * speed; // Player forward speed uses the speed prop
     // Move forward
     playerPosition.z -= movementSpeed * deltaTime;
     
@@ -879,27 +879,26 @@ function GameScene({
     
     // Update player position
     playerRef.current.position.copy(playerPosition);
-    
-    // Update camera position to follow player
-    if (cameraRef.current) {
-      cameraRef.current.position.x = playerPosition.x * 0.3; // Follow with slight lag
-      cameraRef.current.position.z = playerPosition.z + 15; // Stay behind player
-      cameraRef.current.lookAt(playerPosition.x, playerPosition.y, playerPosition.z);
-    }
-    
+    // --- End Player Movement Logic ---
+
     // --- Yeti Spawning Logic ---
     if (!yetiState.active && !gameOver) {
-      // Spawn randomly based on time and chance
-      if (Math.random() < YETI_CONFIG.spawnChance * deltaTime) {
+      // *** Calculate dynamic spawn chance and distance based on player speed ***
+      const currentSpawnChance = BASE_YETI_SPAWN_CHANCE * speed; // Higher speed = higher chance
+      const currentSpawnDistance = BASE_YETI_SPAWN_DISTANCE * speed; // Higher speed = spawn further away
+
+      // Spawn randomly based on time and calculated chance
+      if (Math.random() < currentSpawnChance * deltaTime) {
         const direction = Math.random() < 0.5 ? 'left' : 'right';
-        const startX = direction === 'left' ? YETI_CONFIG.boundsX : -YETI_CONFIG.boundsX;
-        const spawnZ = playerPosition.z - YETI_CONFIG.spawnDistance;
+        const startX = direction === 'left' ? YETI_STATIC_CONFIG.boundsX : -YETI_STATIC_CONFIG.boundsX;
+        // *** Use calculated spawn distance ***
+        const spawnZ = playerPosition.z - currentSpawnDistance;
         const startY = 0; // Ground level
 
-        yetiRef.current.set(startX, startY, spawnZ); // Update the ref immediately
+        yetiRef.current.set(startX, startY, spawnZ);
         setYetiState({
           active: true,
-          position: yetiRef.current.clone(), // Clone ref into state
+          position: yetiRef.current.clone(),
           direction: direction,
           spawnZ: spawnZ,
         });
@@ -909,25 +908,36 @@ function GameScene({
 
     // --- Yeti Movement Logic ---
     if (yetiState.active && yetiState.position && yetiState.direction) {
-      const moveX = YETI_CONFIG.speed * deltaTime * (yetiState.direction === 'left' ? -1 : 1);
+      // *** Calculate dynamic yeti speed based on player speed ***
+      const currentYetiSpeed = BASE_YETI_SPEED * speed;
+
+      // *** Use calculated speed for movement ***
+      const moveX = currentYetiSpeed * deltaTime * (yetiState.direction === 'left' ? -1 : 1);
       yetiRef.current.x += moveX; // Update the ref
 
       // Keep Z constant at spawn depth
       yetiRef.current.z = yetiState.spawnZ!;
 
-      // Update state position (less frequent updates might be okay if needed)
+      // Update state position
       setYetiState(prev => ({ ...prev, position: yetiRef.current.clone() }));
 
       // Despawn if out of bounds
       if (
-        (yetiState.direction === 'left' && yetiRef.current.x < -YETI_CONFIG.boundsX) ||
-        (yetiState.direction === 'right' && yetiRef.current.x > YETI_CONFIG.boundsX)
+        (yetiState.direction === 'left' && yetiRef.current.x < -YETI_STATIC_CONFIG.boundsX) ||
+        (yetiState.direction === 'right' && yetiRef.current.x > YETI_STATIC_CONFIG.boundsX)
       ) {
         setYetiState({ active: false, position: null, direction: null, spawnZ: null });
       }
     }
     // --- End Yeti Movement Logic ---
 
+    // Update camera position to follow player
+    if (cameraRef.current) {
+      cameraRef.current.position.x = playerPosition.x * 0.3; // Follow with slight lag
+      cameraRef.current.position.z = playerPosition.z + 15; // Stay behind player
+      cameraRef.current.lookAt(playerPosition.x, playerPosition.y, playerPosition.z);
+    }
+    
     // Check for collisions
     for (const obstacle of obstacles) {
       if (checkCollision(playerPosition, obstacle)) {
@@ -936,15 +946,15 @@ function GameScene({
       }
     }
 
-    // Check moving yeti
+    // Check moving yeti (uses yetiRef.current, which has updated position)
     if (yetiState.active && checkYetiCollision(playerPosition, yetiRef.current)) {
        setGameOver(true);
-       return;
+       return; // Stop frame processing on game over
     }
     
-    // Update score and speed
+    // Update score and player speed (only if not game over)
     setScore(prev => prev + deltaTime * 10 * speed);
-    setSpeed(prev => Math.min(3, prev + deltaTime * 0.1));
+    setSpeed(prev => Math.min(3, prev + deltaTime * 0.01));
   });
 
   // --- Calculate player collision box bounds for visualization ---
@@ -981,10 +991,11 @@ function GameScene({
   // --- Yeti Collision Box Calculation (for visualization) ---
   let yetiCollisionBox = null;
   if (showCollisionBox && yetiState.active && yetiState.position) {
-    const yetiWidth = YETI_CONFIG.collisionWidth * (YETI_CONFIG.scale.x / 3); // Scale collision box with model
-    const yetiHeight = YETI_CONFIG.collisionHeight * (YETI_CONFIG.scale.y / 3);
-    const yetiDepth = YETI_CONFIG.collisionDepth * (YETI_CONFIG.scale.z / 3);
-    const yetiBaseY = YETI_CONFIG.yOffset;
+    // *** Use static config for dimensions ***
+    const yetiWidth = YETI_STATIC_CONFIG.collisionWidth;
+    const yetiHeight = YETI_STATIC_CONFIG.collisionHeight;
+    const yetiDepth = YETI_STATIC_CONFIG.collisionDepth;
+    const yetiBaseY = YETI_STATIC_CONFIG.yOffset;
 
     const yetiMin = new THREE.Vector3(
       yetiState.position.x - yetiWidth / 2,
