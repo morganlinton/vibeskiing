@@ -116,7 +116,7 @@ function useAnimations(state: 'idle' | 'left' | 'right' | 'crash', onCrashComple
 const OBSTACLES = {
   tree: {
     scale: { x: 5, y: 5, z: 5 },
-    yOffset: 5,
+    yOffset: 2,
     collisionRadius: 0.3,
     collisionHeight: 2,
     weight: 0.4,
@@ -124,7 +124,7 @@ const OBSTACLES = {
   },
   rock: {
     scale: { x: 2, y: 2, z: 2 },
-    yOffset: 2,
+    yOffset: -1.5,
     collisionRadius: 1.0,
     collisionHeight: 1.5,
     weight: 0.3,
@@ -132,7 +132,7 @@ const OBSTACLES = {
   },
   bump: {
     scale: { x: 1, y: 1, z: 1 },
-    yOffset: 0,
+    yOffset: -2.85,
     collisionRadius: 0.4,
     collisionHeight: 0.3,
     weight: 0.2,
@@ -140,7 +140,7 @@ const OBSTACLES = {
   },
   pole: {
     scale: { x: 3.75, y: 3.75, z: 3.75 },
-    yOffset: 4,
+    yOffset: 1,
     collisionRadius: 0.3,
     collisionSegments: [
       { height: 3, radius: 0.3, yOffset: 0 },
@@ -291,17 +291,13 @@ function Snow() {
 
 function Obstacle({ type, position }: { type: keyof typeof OBSTACLES; position: THREE.Vector3 }) {
   const config = OBSTACLES[type];
-  
-  // Raise position to be above snow
-  const adjustedPosition = new THREE.Vector3(
-    position.x,
-    position.y + 1, // Raise by 1 unit to be above snow
-    position.z
-  );
-  
+
+  // Use the original position directly, no need to raise it
+  const adjustedPosition = position; // Removed the y + 1 adjustment
+
   if (type === 'tree' || type === 'rock' || type === 'pole') {
     const { scene } = useGLTF(MODEL_URLS[type]);
-    
+
     const clonedScene = useMemo(() => {
       const clone = scene.clone();
       clone.traverse((child: THREE.Object3D) => {
@@ -318,8 +314,9 @@ function Obstacle({ type, position }: { type: keyof typeof OBSTACLES; position: 
     }, [scene]);
 
     return (
-      <primitive 
+      <primitive
         object={clonedScene}
+        // Use adjustedPosition.y directly with the new yOffset
         position={[adjustedPosition.x, adjustedPosition.y + config.yOffset, adjustedPosition.z]}
         scale={[config.scale.x, config.scale.y, config.scale.z]}
         castShadow
@@ -327,16 +324,17 @@ function Obstacle({ type, position }: { type: keyof typeof OBSTACLES; position: 
       />
     );
   }
-  
+
   return (
-    <mesh 
+    <mesh
+      // Use adjustedPosition.y directly with the new yOffset
       position={[adjustedPosition.x, adjustedPosition.y + config.yOffset, adjustedPosition.z]}
       scale={[config.scale.x, config.scale.y, config.scale.z]}
       castShadow
       receiveShadow
     >
       {type === 'bump' && <sphereGeometry args={[0.5, 8, 8]} />}
-      <meshStandardMaterial 
+      <meshStandardMaterial
         color={type === 'bump' ? '#ffffff' : '#cc0000'}
         roughness={0.8}
         metalness={0}
