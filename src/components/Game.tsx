@@ -119,14 +119,14 @@ const OBSTACLES = {
 
 // --- Define Yeti Properties ---
 const YETI_CONFIG = {
-  scale: { x: 8, y: 8, z: 8 }, 
+  scale: { x: 7, y: 7, z: 7 }, 
   yOffset: 3, 
   collisionWidth: 2.5, // Estimated collision width - might need adjustment
   collisionHeight: 3, // Estimated collision height - might need adjustment
   collisionDepth: 2, // Estimated collision depth - might need adjustment
-  speed: 35, // Horizontal movement speed
+  speed: 40, // Horizontal movement speed
   spawnChance: 0.5, // Chance per second to spawn
-  spawnDistance: 25, // How far ahead of the player the yeti spawns
+  spawnDistance: 35, // How far ahead of the player the yeti spawns
   boundsX: 60, // Horizontal limit before despawning
 };
 // --- End Yeti Properties ---
@@ -852,11 +852,11 @@ function GameScene({
   useFrame(() => {
     if (crashed || !playerRef.current) return;
     
-    const deltaTime = Math.min(clock.getElapsedTime() - (playerRef.current.userData.lastTime || 0), 0.1);
+    const deltaTime = Math.min(clock.getElapsedTime() - (playerRef.current.userData.lastTime || 0), 0.23);
     playerRef.current.userData.lastTime = clock.getElapsedTime();
     
     // Calculate forward movement
-    const movementSpeed = 10 * speed;
+    const movementSpeed = 20 * speed;
     
     // Move forward
     playerPosition.z -= movementSpeed * deltaTime;
@@ -865,7 +865,7 @@ function GameScene({
     const leftKey = playerRef.current.userData.leftPressed;
     const rightKey = playerRef.current.userData.rightPressed;
     
-    const lateralSpeed = 5;
+    const lateralSpeed = 16;
     
     if (leftKey) {
       playerPosition.x -= lateralSpeed * deltaTime;
@@ -944,7 +944,7 @@ function GameScene({
     
     // Update score and speed
     setScore(prev => prev + deltaTime * 10 * speed);
-    setSpeed(prev => Math.min(3, prev + deltaTime * 0.01));
+    setSpeed(prev => Math.min(3, prev + deltaTime * 0.1));
   });
 
   // --- Calculate player collision box bounds for visualization ---
