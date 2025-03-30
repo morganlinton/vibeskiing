@@ -1,43 +1,9 @@
 import React, { useEffect, useRef, useState, forwardRef, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { PerspectiveCamera, useGLTF, Points } from '@react-three/drei';
 import * as THREE from 'three';
 import { MODEL_URLS } from '../models';
 import Leaderboard from './Leaderboard';
-
-// Create a checkerboard texture
-const textureSize = 512;
-const data = new Uint8Array(textureSize * textureSize * 4);
-const size = 64; // Size of each square in the checkerboard
-
-for (let i = 0; i < textureSize; i++) {
-  for (let j = 0; j < textureSize; j++) {
-    const offset = (i * textureSize + j) * 4;
-    const isEven = (Math.floor(i / size) + Math.floor(j / size)) % 2 === 0;
-    // Using white and dark blue for maximum contrast
-    if (isEven) {
-      data[offset] = 255;     // R (white)
-      data[offset + 1] = 255; // G (white)
-      data[offset + 2] = 255; // B (white)
-    } else {
-      data[offset] = 20;      // R (dark blue)
-      data[offset + 1] = 20;  // G (dark blue)
-      data[offset + 2] = 100; // B (dark blue)
-    }
-    data[offset + 3] = 255;   // A
-  }
-}
-
-const checkerboardTexture = new THREE.DataTexture(
-  data,
-  textureSize,
-  textureSize,
-  THREE.RGBAFormat
-);
-checkerboardTexture.needsUpdate = true;
-checkerboardTexture.wrapS = THREE.RepeatWrapping;
-checkerboardTexture.wrapT = THREE.RepeatWrapping;
-checkerboardTexture.repeat.set(5, 50); // Repeat the texture to make it more visible
 
 // Define CollisionBox component for debugging
 function CollisionBox({ min, max, color }: { min: THREE.Vector3; max: THREE.Vector3; color: string }) {
@@ -356,6 +322,19 @@ function Terrain({
   const visibleSegments = useRef<number[]>([]);
   const lastCleanup = useRef(playerZ);
   
+  // Load the snow texture
+  const snowTexture = useLoader(THREE.TextureLoader, '/snow-texture.png'); // Assuming the texture is in the public folder
+
+  // Configure texture wrapping and repetition
+  useEffect(() => {
+    if (snowTexture) {
+      snowTexture.wrapS = THREE.RepeatWrapping;
+      snowTexture.wrapT = THREE.RepeatWrapping;
+      // Adjust repeat values as needed for desired tiling effect
+      snowTexture.repeat.set(20, 200); // Example: repeat 20 times horizontally, 200 times vertically per plane segment
+    }
+  }, [snowTexture]);
+
   const generateSegment = (segmentIndex: number) => {
     const startZ = segmentIndex * segmentLength;
     const endZ = startZ + segmentLength;
@@ -417,6 +396,7 @@ function Terrain({
         <meshStandardMaterial 
           color="#ffffff" 
           roughness={0.9}
+          map={snowTexture}
         />
       </mesh>
     );
@@ -434,7 +414,7 @@ function Terrain({
         <meshStandardMaterial 
           color="#ffffff" 
           roughness={0.9}
-          map={checkerboardTexture}
+          map={snowTexture}
         />
       </mesh>
     );
