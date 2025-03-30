@@ -8,16 +8,22 @@ import Leaderboard from './Leaderboard';
 // Create a checkerboard texture
 const textureSize = 512;
 const data = new Uint8Array(textureSize * textureSize * 4);
-const size = 32; // Size of each square in the checkerboard
+const size = 64; // Size of each square in the checkerboard
 
 for (let i = 0; i < textureSize; i++) {
   for (let j = 0; j < textureSize; j++) {
     const offset = (i * textureSize + j) * 4;
     const isEven = (Math.floor(i / size) + Math.floor(j / size)) % 2 === 0;
-    const color = isEven ? 255 : 180; // White and light gray
-    data[offset] = color;     // R
-    data[offset + 1] = color; // G
-    data[offset + 2] = color; // B
+    // Using white and dark blue for maximum contrast
+    if (isEven) {
+      data[offset] = 255;     // R (white)
+      data[offset + 1] = 255; // G (white)
+      data[offset + 2] = 255; // B (white)
+    } else {
+      data[offset] = 20;      // R (dark blue)
+      data[offset + 1] = 20;  // G (dark blue)
+      data[offset + 2] = 100; // B (dark blue)
+    }
     data[offset + 3] = 255;   // A
   }
 }
@@ -29,6 +35,9 @@ const checkerboardTexture = new THREE.DataTexture(
   THREE.RGBAFormat
 );
 checkerboardTexture.needsUpdate = true;
+checkerboardTexture.wrapS = THREE.RepeatWrapping;
+checkerboardTexture.wrapT = THREE.RepeatWrapping;
+checkerboardTexture.repeat.set(5, 50); // Repeat the texture to make it more visible
 
 function CollisionBox({ min, max, color }: { min: THREE.Vector3; max: THREE.Vector3; color: string }) {
   const width = max.x - min.x;
@@ -301,6 +310,107 @@ function Obstacle({ type, position }: { type: keyof typeof OBSTACLES; position: 
   );
 }
 
+function Terrain({ playerZ, obstacles, setObstacles }: { 
+  playerZ: number;
+  obstacles: Obstacle[];
+  setObstacles: React.Dispatch<React.SetStateAction<Obstacle[]>>;
+}) {
+  const segmentLength = 200;
+  const visibleSegments = useRef<number[]>([]);
+  const lastCleanup = useRef(playerZ);
+  
+  const generateSegment = (segmentIndex: number) => {
+    const startZ = segmentIndex * segmentLength;
+    const endZ = startZ + segmentLength;
+    return generateObstaclesForSegment(startZ, endZ);
+  };
+
+  useEffect(() => {
+    const initialSegments: Obstacle[] = [];
+    for (let i = -2; i < 3; i++) {
+      initialSegments.push(...generateSegment(i));
+      visibleSegments.current.push(i);
+    }
+    setObstacles(initialSegments);
+  }, [setObstacles]);
+
+  useFrame(() => {
+    const currentSegment = Math.floor(playerZ / segmentLength);
+    
+    const segmentsToGenerate = [];
+    for (let i = currentSegment - 1; i <= currentSegment + 3; i++) {
+      if (!visibleSegments.current.includes(i)) {
+        segmentsToGenerate.push(i);
+        visibleSegments.current.push(i);
+      }
+    }
+
+    if (segmentsToGenerate.length > 0) {
+      const newObstacles = segmentsToGenerate.flatMap(generateSegment);
+      setObstacles((prev: Obstacle[]) => [...prev, ...newObstacles]);
+    }
+
+    if (Math.abs(playerZ - lastCleanup.current) > segmentLength) {
+      const cleanupThreshold = currentSegment - 2;
+      setObstacles((prev: Obstacle[]) => 
+        prev.filter((obs: Obstacle) => Math.floor(obs.position.z / segmentLength) >= cleanupThreshold)
+      );
+      visibleSegments.current = visibleSegments.current.filter(
+        segment => segment >= cleanupThreshold
+      );
+      lastCleanup.current = playerZ;
+    }
+  });
+
+  return (
+    <>
+      {/* Snow surface */}
+      <mesh 
+        rotation={[-Math.PI / 2, 0, 0]} 
+        position={[0, -1, playerZ + 500]}
+        receiveShadow
+      >
+        <planeGeometry args={[200, 1200, 40, 100]} />
+        <meshStandardMaterial 
+          color="#ffffff" 
+          roughness={0.9}
+          metalness={0.1}
+          emissive="#f0f8ff"
+          emissiveIntensity={0.05}
+          onBeforeCompile={(shader) => {
+            // Add vertex displacement for subtle snow undulation
+            shader.vertexShader = shader.vertexShader.replace(
+              '#include <common>',
+              `
+              #include <common>
+              float noise(vec2 p) {
+                return sin(p.x * 10.0) * sin(p.y * 10.0) * 0.5 + 0.5;
+              }
+              `
+            );
+            shader.vertexShader = shader.vertexShader.replace(
+              '#include <begin_vertex>',
+              `
+              #include <begin_vertex>
+              float snowHeight = noise(position.xz * 0.05) * 0.5;
+              transformed.y += snowHeight;
+              `
+            );
+          }}
+        />
+      </mesh>
+
+      {obstacles.map(obstacle => (
+        <Obstacle 
+          key={obstacle.id}
+          type={obstacle.type}
+          position={obstacle.position}
+        />
+      ))}
+    </>
+  );
+}
+
 function generateObstaclesForSegment(startZ: number, endZ: number): Obstacle[] {
   const obstacles: Obstacle[] = [];
   const obstacleTypes = Object.keys(OBSTACLES) as (keyof typeof OBSTACLES)[];
@@ -336,98 +446,6 @@ function generateObstaclesForSegment(startZ: number, endZ: number): Obstacle[] {
   }
   
   return obstacles;
-}
-
-function Terrain({ position, playerZ, obstacles, setObstacles }: { 
-  position: THREE.Vector3;
-  playerZ: number;
-  obstacles: Obstacle[];
-  setObstacles: (obstacles: Obstacle[]) => void;
-}) {
-  const segmentLength = 200;
-  const visibleSegments = useRef<number[]>([]);
-  const lastCleanup = useRef(playerZ);
-  
-  const generateSegment = (segmentIndex: number) => {
-    const startZ = segmentIndex * segmentLength;
-    const endZ = startZ + segmentLength;
-    return generateObstaclesForSegment(startZ, endZ);
-  };
-
-  useEffect(() => {
-    const initialSegments: Obstacle[] = [];
-    for (let i = -2; i < 3; i++) {
-      initialSegments.push(...generateSegment(i));
-      visibleSegments.current.push(i);
-    }
-    setObstacles(initialSegments);
-  }, [setObstacles]);
-
-  useFrame(() => {
-    const currentSegment = Math.floor(playerZ / segmentLength);
-    
-    const segmentsToGenerate = [];
-    for (let i = currentSegment - 1; i <= currentSegment + 3; i++) {
-      if (!visibleSegments.current.includes(i)) {
-        segmentsToGenerate.push(i);
-        visibleSegments.current.push(i);
-      }
-    }
-
-    if (segmentsToGenerate.length > 0) {
-      const newObstacles = segmentsToGenerate.flatMap(generateSegment);
-      setObstacles(prev => [...prev, ...newObstacles]);
-    }
-
-    if (Math.abs(playerZ - lastCleanup.current) > segmentLength) {
-      const cleanupThreshold = currentSegment - 2;
-      setObstacles(prev => 
-        prev.filter(obs => Math.floor(obs.position.z / segmentLength) >= cleanupThreshold)
-      );
-      visibleSegments.current = visibleSegments.current.filter(
-        segment => segment >= cleanupThreshold
-      );
-      lastCleanup.current = playerZ;
-    }
-  });
-
-  const geometry = useMemo(() => {
-    const geo = new THREE.PlaneGeometry(100, 1000, 50, 100);
-    const vertices = geo.attributes.position.array;
-    
-    for (let i = 0; i < vertices.length; i += 3) {
-      const x = vertices[i];
-      const z = vertices[i + 2];
-      vertices[i + 1] = Math.sin(x * 0.05) * 0.5 + Math.cos(z * 0.05) * 0.5;
-    }
-    
-    return geo;
-  }, []);
-
-  return (
-    <>
-      <mesh 
-        position={position} 
-        rotation={[-Math.PI / 4, 0, 0]}
-        receiveShadow
-      >
-        <primitive object={geometry} />
-        <meshStandardMaterial 
-          map={checkerboardTexture}
-          roughness={0.8}
-          metalness={0.1}
-        />
-      </mesh>
-      
-      {obstacles.map(obstacle => (
-        <Obstacle 
-          key={obstacle.id}
-          type={obstacle.type}
-          position={obstacle.position}
-        />
-      ))}
-    </>
-  );
 }
 
 const Player = forwardRef<THREE.Group, { crashed: boolean; onCrashComplete?: () => void }>((props, ref) => {
@@ -572,7 +590,6 @@ function GameScene({
       <Snow />
       <Player ref={playerRef} crashed={gameOver} onCrashComplete={onCrashComplete} />
       <Terrain 
-        position={new THREE.Vector3(0, -5, 0)}
         playerZ={playerPosition.current.z}
         obstacles={obstacles}
         setObstacles={setObstacles}
