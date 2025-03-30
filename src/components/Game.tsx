@@ -749,8 +749,8 @@ function GameScene({
       playerPosition.x += lateralSpeed * deltaTime;
     }
     
-    // Keep the player within bounds
-    const boundaryX = 10;
+    // Keep the player within bounds - Use ground plane half-width
+    const boundaryX = 50; // Changed from 10 to 50
     playerPosition.x = Math.max(-boundaryX, Math.min(boundaryX, playerPosition.x));
     
     // Update player position
