@@ -430,8 +430,17 @@ function Terrain({
   const visibleSegments = useRef<number[]>([]);
   const lastCleanup = useRef(playerZ);
   
-  // Load the snow texture
-  const snowTexture = useLoader(THREE.TextureLoader, 'https://raw.githubusercontent.com/morganlinton/vibeskiing-files/refs/heads/main/snow-texture.png'); 
+  // Load the snow texture with error handling
+  const [textureError, setTextureError] = useState(false);
+  const snowTexture = useLoader(
+    THREE.TextureLoader, 
+    '/snow-texture.png', // Use local texture from public folder
+    undefined,
+    (error) => {
+      console.error('Failed to load snow texture:', error);
+      setTextureError(true);
+    }
+  );
 
   // Configure texture wrapping and repetition
   useEffect(() => {
@@ -1054,6 +1063,26 @@ function Game() {
   const [time, setTime] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [webGLSupported, setWebGLSupported] = useState(true);
+
+  // Check WebGL support on component mount
+  useEffect(() => {
+    try {
+      // Try to create a WebGL canvas to test support
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      
+      if (!gl) {
+        console.error('WebGL not supported');
+        setWebGLSupported(false);
+      } else {
+        console.log('WebGL is supported');
+      }
+    } catch (e) {
+      console.error('Error detecting WebGL support:', e);
+      setWebGLSupported(false);
+    }
+  }, []);
 
   // --- Centralized Input State ---
   const [leftPressed, setLeftPressed] = useState(false);
@@ -1157,6 +1186,7 @@ function Game() {
 
   return (
     <div className="w-full h-screen relative overflow-hidden"> {/* Added overflow-hidden */}
+      {/* UI Overlay */}
       <div className="absolute top-0 left-0 p-4 text-white z-10">
         <div className="bg-black/50 p-2 rounded">
           <p>Score: {Math.floor(score)}</p>
@@ -1164,22 +1194,58 @@ function Game() {
           <p>Time: {Math.floor(time)}s</p>
         </div>
       </div>
-      
-      <Canvas style={{ background: "#87CEEB" }}>
-        <GameScene
-          setScore={setScore}
-          setSpeed={setSpeed}
-          setGameOver={setGameOver}
-          speed={speed}
-          gameOver={gameOver}
-          onCrashComplete={handleCrashComplete}
-          leftPressed={leftPressed}
-          rightPressed={rightPressed}
-        />
-      </Canvas>
+
+      {/* WebGL fallback message */}
+      {!webGLSupported && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-white p-4 z-50">
+          <div className="bg-red-900/80 p-6 rounded-lg max-w-md text-center">
+            <h2 className="text-2xl font-bold mb-4">WebGL Not Supported</h2>
+            <p className="mb-4">
+              Your device or browser doesn't support WebGL, which is required to play Vibe Skiing.
+            </p>
+            <p>
+              Please try using a different browser (Chrome or Safari recommended) or a device with better graphics support.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {webGLSupported && (
+        <Canvas
+          gl={{
+            antialias: false, // Disable antialiasing for mobile performance
+            powerPreference: 'high-performance',
+            alpha: false,
+            stencil: false,
+            depth: true,
+          }}
+          dpr={[1, 1.5]} // Limit pixel ratio for performance
+          style={{ background: "#87CEEB" }}
+          shadows={false} // Disable shadows for performance
+          onCreated={({ gl }) => {
+            // Log WebGL context creation success
+            console.log('WebGL context created successfully', gl.getContextAttributes());
+          }}
+          onError={(error) => {
+            // Log WebGL context creation error
+            console.error('WebGL context creation failed', error);
+          }}
+        >
+          <GameScene
+            setScore={setScore}
+            setSpeed={setSpeed}
+            setGameOver={setGameOver}
+            speed={speed}
+            gameOver={gameOver}
+            onCrashComplete={handleCrashComplete}
+            leftPressed={leftPressed}
+            rightPressed={rightPressed}
+          />
+        </Canvas>
+      )}
 
       {/* Conditionally render Joystick Container */}
-      {isMobile && (
+      {webGLSupported && isMobile && (
         <div
            ref={joystickContainerRef}
            style={{
