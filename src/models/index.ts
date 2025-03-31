@@ -7,18 +7,12 @@ export const MODEL_URLS = {
   skier: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/skier.glb',
   rock: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/rock.glb',
   pole: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/pole.glb',
-  yeti: '/snow-yeti.glb'
+  yeti: 'https://raw.githubusercontent.com/morganlinton/vibeskiing-files/main/snow-yeti.glb'
+  //yeti: '/public/snow-yeti.glb'
 } as const;
 
-// Preload models with error handling
-Object.entries(MODEL_URLS).forEach(([key, url]) => {
-  try {
-    console.log(`Preloading model: ${key} from ${url}`);
-    useGLTF.preload(url);
-  } catch (error) {
-    console.error(`Failed to preload model: ${key} from ${url}`, error);
-  }
-});
+// Preload models
+Object.values(MODEL_URLS).forEach(url => useGLTF.preload(url));
 
 const createPlaceholderPole = () => {
   const geometry = new THREE.CylinderGeometry(0.1, 0.1, 3, 8);
