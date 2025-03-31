@@ -7,7 +7,8 @@ export const MODEL_URLS = {
   skier: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/skier.glb',
   rock: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/rock.glb',
   pole: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/pole.glb',
-  yeti: '/public/snow-yeti.glb'
+  yeti: 'https://raw.githubusercontent.com/morganlinton/vibeskiing-files/main/snow-yeti.glb'
+  //yeti: '/public/snow-yeti.glb'
 } as const;
 
 // Preload models
