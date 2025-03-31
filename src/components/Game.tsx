@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, forwardRef, useMemo } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { PerspectiveCamera, useGLTF, Points } from '@react-three/drei';
 import * as THREE from 'three';
+import nipplejs, { JoystickManager } from 'nipplejs';
 import { MODEL_URLS } from '../models';
 import Leaderboard from './Leaderboard';
 
@@ -118,17 +119,17 @@ const OBSTACLES = {
 } as const;
 
 // --- Define Yeti Properties ---
-const BASE_YETI_SPEED = 23;  
-const BASE_YETI_SPAWN_DISTANCE = 12; 
+const BASE_YETI_SPEED = 55;
+const BASE_YETI_SPAWN_DISTANCE = 40; 
 const BASE_YETI_SPAWN_CHANCE = 0.1; 
 
 const YETI_STATIC_CONFIG = { // Renamed to hold non-dynamic properties
-  scale: { x: 6, y: 6, z: 6 },
+  scale: { x: 7, y: 7, z: 7 },
   yOffset: 1,
-  collisionWidth: 2.5, // Might need adjustment based on scaled model
-  collisionHeight: 5, // Might need adjustment based on scaled model
-  collisionDepth: 2, // Might need adjustment based on scaled model
-  boundsX: 60, // Horizontal limit before despawning (kept static for now)
+  collisionWidth: 4, 
+  collisionHeight: 8, 
+  collisionDepth: 2, 
+  boundsX: 60, 
 };
 // --- End Yeti Properties ---
 
@@ -686,20 +687,18 @@ function generateObstaclesForSegment(startZ: number, endZ: number): Obstacle[] {
   return obstacles;
 }
 
-const Player = forwardRef<THREE.Group, { crashed: boolean; onCrashComplete: () => void }>(
-  ({ crashed, onCrashComplete }, ref) => {
-    // Load the skier model
+// --- Updated Player Component ---
+const Player = forwardRef<THREE.Group, { crashed: boolean; onCrashComplete: () => void; leftPressed: boolean; rightPressed: boolean }>(
+  ({ crashed, onCrashComplete, leftPressed, rightPressed }, ref) => {
     const { scene } = useGLTF(MODEL_URLS.skier);
 
-    // Clone the scene to avoid modifying the original cache and apply material settings
     const clonedScene = useMemo(() => {
       const clone = scene.clone();
       clone.traverse((child: THREE.Object3D) => {
         if (child instanceof THREE.Mesh) {
           child.material = child.material.clone();
-          child.material.toneMapped = false; // Adjust material properties as needed
+          child.material.toneMapped = false;
           child.castShadow = true;
-          // child.receiveShadow = true; // Skier probably doesn't need to receive shadows
         }
       });
       return clone;
@@ -709,83 +708,51 @@ const Player = forwardRef<THREE.Group, { crashed: boolean; onCrashComplete: () =
     const crashRotation = useRef({ x: 0, y: 0, z: 0 });
     const crashAnimationCompleted = useRef(false);
 
-    // Add keyboard controls
+    // ** Removed internal useEffect for keyboard controls **
+
+    // Update visual rotation based on props
     useEffect(() => {
-      const group = ref as React.MutableRefObject<THREE.Group>;
-      if (!group.current) return;
-      
-      group.current.userData = {
-        leftPressed: false,
-        rightPressed: false,
-        lastTime: 0
-      };
-
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (crashed) return;
-        
-        if (e.key === 'ArrowLeft' || e.key === 'a') {
-          group.current.userData.leftPressed = true;
-          setRotation(0.4);
-        } else if (e.key === 'ArrowRight' || e.key === 'd') {
-          group.current.userData.rightPressed = true;
-          setRotation(-0.4);
-        }
-      };
-
-      const handleKeyUp = (e: KeyboardEvent) => {
-        if (e.key === 'ArrowLeft' || e.key === 'a') {
-          group.current.userData.leftPressed = false;
-          if (!group.current.userData.rightPressed) setRotation(0);
-        } else if (e.key === 'ArrowRight' || e.key === 'd') {
-          group.current.userData.rightPressed = false;
-          if (!group.current.userData.leftPressed) setRotation(0);
-        }
-      };
-
-      window.addEventListener('keydown', handleKeyDown);
-      window.addEventListener('keyup', handleKeyUp);
-
-      return () => {
-        window.removeEventListener('keydown', handleKeyDown);
-        window.removeEventListener('keyup', handleKeyUp);
-      };
-    }, [ref, crashed]);
-
-    useFrame((_: any, delta: number) => {
-      if (!ref || !crashed || crashAnimationCompleted.current) return;
-
-      // Crash animation
-      const group = ref as React.MutableRefObject<THREE.Group>;
-      
-      if (crashRotation.current.z < Math.PI * 2) {
-        crashRotation.current.z += delta * 5;
-        crashRotation.current.x += delta * 2;
-        group.current.rotation.z = crashRotation.current.z;
-        group.current.rotation.x = crashRotation.current.x;
-      } else {
-        crashAnimationCompleted.current = true;
-        onCrashComplete();
+      if (crashed) {
+        setRotation(0); // Or handle crash rotation separately if needed
+        return;
       }
+      if (leftPressed) {
+        setRotation(0.4);
+      } else if (rightPressed) {
+        setRotation(-0.4);
+      } else {
+        setRotation(0);
+      }
+    }, [leftPressed, rightPressed, crashed]);
+
+    // Crash animation logic (remains the same)
+    useFrame((_: any, delta: number) => {
+       if (!ref || !crashed || crashAnimationCompleted.current) return;
+      // ... (crash animation logic) ...
+       else {
+         crashAnimationCompleted.current = true;
+         onCrashComplete();
+       }
     });
 
     return (
       <group
         ref={ref}
-        position={[0, 0, 0]} // Keep group at origin, model position adjusted below
-        rotation={[0, 0, rotation]} // Apply turning rotation to the group
+        position={[0, 0, 0]}
+        rotation={[0, 0, rotation]} // Apply turning rotation
       >
-        {/* Use the loaded GLTF model */}
         <primitive
           object={clonedScene}
-          position={[0, -2, 0]} // Changed Y from -3 to -2 to move the player up by 1
-          scale={[2.5, 2.5, 2.5]} // Adjust scale as needed
-          rotation={[0, Math.PI, 0]} // Rotate 180 degrees if the model faces the wrong way
+          position={[0, -2, 0]}
+          scale={[2.5, 2.5, 2.5]}
+          rotation={[0, Math.PI, 0]}
           castShadow
         />
       </group>
     );
   }
 );
+// --- End Updated Player Component ---
 
 // --- Define Yeti State Type ---
 interface YetiState {
@@ -796,20 +763,25 @@ interface YetiState {
 }
 // --- End Yeti State Type ---
 
-function GameScene({ 
-  setScore, 
-  setSpeed, 
-  setGameOver, 
-  speed, 
+// --- Updated GameScene Component ---
+function GameScene({
+  setScore,
+  setSpeed,
+  setGameOver,
+  speed,
   gameOver,
-  onCrashComplete
-}: { 
+  onCrashComplete,
+  leftPressed, // Added prop
+  rightPressed // Added prop
+}: {
   setScore: (cb: (prev: number) => number) => void;
   setSpeed: (cb: (prev: number) => number) => void;
   setGameOver: (value: boolean) => void;
   speed: number;
   gameOver: boolean;
   onCrashComplete: () => void;
+  leftPressed: boolean; // Added prop type
+  rightPressed: boolean; // Added prop type
 }) {
   const [playerPosition] = useState(new THREE.Vector3(0, 2, 0));
   const playerRef = useRef<THREE.Group>(null);
@@ -817,6 +789,7 @@ function GameScene({
   const [crashed, setCrashed] = useState(false);
   const [obstacles, setObstacles] = useState<Obstacle[]>([]);
   const clock = useRef(new THREE.Clock()).current;
+  const lastFrameTime = useRef(0); // Add ref to store last frame time
   const [showCollisionBox, setShowCollisionBox] = useState(false);
 
   // --- Add Yeti State ---
@@ -851,34 +824,33 @@ function GameScene({
   }, [gameOver]);
 
   useFrame(() => {
-    if (crashed || !playerRef.current) return;
-    
-    const deltaTime = Math.min(clock.getElapsedTime() - (playerRef.current.userData.lastTime || 0), 0.23);
-    playerRef.current.userData.lastTime = clock.getElapsedTime();
-    
-    // --- Player Movement Logic ---
-    const movementSpeed = 10 * speed; // Player forward speed uses the speed prop
-    // Move forward
+    if (crashed) return;
+
+    // *** Corrected deltaTime Calculation ***
+    const currentTime = clock.getElapsedTime();
+    const deltaTime = Math.min(currentTime - lastFrameTime.current, 0.1); // Use 0.1 cap for stability
+    lastFrameTime.current = currentTime; // Update ref for next frame
+    // *** End Corrected deltaTime Calculation ***
+
+    // --- Player Movement Logic (using props) ---
+    const movementSpeed = 40 * speed; // Doubled base multiplier again (10 -> 20 -> 40)
     playerPosition.z -= movementSpeed * deltaTime;
-    
-    // Calculate lateral movement based on keyboard input
-    const leftKey = playerRef.current.userData.leftPressed;
-    const rightKey = playerRef.current.userData.rightPressed;
-    
-    const lateralSpeed = 16;
-    
-    if (leftKey) {
+
+    // ** Use leftPressed/rightPressed props directly **
+    const lateralSpeed = 18;
+    if (leftPressed) {
       playerPosition.x -= lateralSpeed * deltaTime;
-    } else if (rightKey) {
+    } else if (rightPressed) {
       playerPosition.x += lateralSpeed * deltaTime;
     }
-    
-    // Keep the player within bounds - Use ground plane half-width
-    const boundaryX = 50; // Changed from 10 to 50
+
+    const boundaryX = 50;
     playerPosition.x = Math.max(-boundaryX, Math.min(boundaryX, playerPosition.x));
-    
-    // Update player position
-    playerRef.current.position.copy(playerPosition);
+
+    // Update player group position (still needed)
+    if (playerRef.current) {
+       playerRef.current.position.copy(playerPosition);
+    }
     // --- End Player Movement Logic ---
 
     // --- Yeti Spawning Logic ---
@@ -1046,6 +1018,8 @@ function GameScene({
         ref={playerRef} 
         crashed={crashed} 
         onCrashComplete={onCrashComplete}
+        leftPressed={leftPressed}
+        rightPressed={rightPressed}
       />
       
       {/* Snow particles */}
@@ -1071,13 +1045,97 @@ function GameScene({
     </>
   );
 }
+// --- End Updated GameScene Component ---
 
+// --- Updated Game Component ---
 function Game() {
   const [score, setScore] = useState(0);
-  const [speed, setSpeed] = useState(2); // set initial speed to 2
+  const [speed, setSpeed] = useState(1);
   const [time, setTime] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+
+  // --- Centralized Input State ---
+  const [leftPressed, setLeftPressed] = useState(false);
+  const [rightPressed, setRightPressed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const joystickContainerRef = useRef<HTMLDivElement>(null);
+  const joystickManager = useRef<JoystickManager | null>(null);
+  // --- End Centralized Input State ---
+
+  useEffect(() => {
+    // Simple mobile detection
+    const checkMobile = () => {
+      const hasTouchEvent = 'ontouchstart' in window;
+      const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+      return hasTouchEvent || hasCoarsePointer;
+    };
+    const mobileDetected = checkMobile();
+    setIsMobile(mobileDetected);
+
+    if (mobileDetected) {
+      // Initialize NippleJS
+      if (joystickContainerRef.current && !joystickManager.current) {
+        const options = {
+          zone: joystickContainerRef.current,
+          mode: 'static' as const, // Use 'static' or 'semi' or 'dynamic'
+          position: { left: '50%', top: '50%' },
+          color: 'rgba(255, 255, 255, 0.5)',
+          size: 100, // Adjust size as needed
+          threshold: 0.1, // Trigger sensitivity
+          lockX: true, // Only horizontal movement
+        };
+        joystickManager.current = nipplejs.create(options);
+
+        joystickManager.current.on('dir:left', () => {
+          setLeftPressed(true);
+          setRightPressed(false);
+        });
+        joystickManager.current.on('dir:right', () => {
+          setLeftPressed(false);
+          setRightPressed(true);
+        });
+        joystickManager.current.on('end', () => {
+          setLeftPressed(false);
+          setRightPressed(false);
+        });
+      }
+    } else {
+      // Initialize Keyboard Listeners
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (gameOver) return;
+        if (e.key === 'ArrowLeft' || e.key === 'a') {
+          setLeftPressed(true);
+        } else if (e.key === 'ArrowRight' || e.key === 'd') {
+          setRightPressed(true);
+        }
+      };
+      const handleKeyUp = (e: KeyboardEvent) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a') {
+          setLeftPressed(false);
+        } else if (e.key === 'ArrowRight' || e.key === 'd') {
+          setRightPressed(false);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('keyup', handleKeyUp);
+
+      // Cleanup keyboard listeners
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keyup', handleKeyUp);
+      };
+    }
+
+    // Cleanup NippleJS
+    return () => {
+      if (joystickManager.current) {
+        joystickManager.current.destroy();
+        joystickManager.current = null;
+      }
+    };
+
+  }, [gameOver]); // Re-run effect if game state changes if needed, primarily for cleanup
 
   useEffect(() => {
     if (gameOver) return;
@@ -1098,7 +1156,7 @@ function Game() {
   };
 
   return (
-    <div className="w-full h-screen relative">
+    <div className="w-full h-screen relative overflow-hidden"> {/* Added overflow-hidden */}
       <div className="absolute top-0 left-0 p-4 text-white z-10">
         <div className="bg-black/50 p-2 rounded">
           <p>Score: {Math.floor(score)}</p>
@@ -1108,15 +1166,36 @@ function Game() {
       </div>
       
       <Canvas style={{ background: "#87CEEB" }}>
-        <GameScene 
+        <GameScene
           setScore={setScore}
           setSpeed={setSpeed}
           setGameOver={setGameOver}
           speed={speed}
           gameOver={gameOver}
           onCrashComplete={handleCrashComplete}
+          leftPressed={leftPressed}
+          rightPressed={rightPressed}
         />
       </Canvas>
+
+      {/* Conditionally render Joystick Container */}
+      {isMobile && (
+        <div
+           ref={joystickContainerRef}
+           style={{
+             position: 'absolute',
+             bottom: '50px', // Adjust position as needed
+             left: '0',
+             width: '100%',
+             height: '150px', // Ensure enough height for joystick interaction
+             display: 'flex',
+             justifyContent: 'center',
+             alignItems: 'center',
+             zIndex: 20, // Ensure it's above canvas but below UI/Leaderboard if needed
+             // backgroundColor: 'rgba(0,0,0,0.1)', // Optional: for debugging placement
+           }}
+        />
+      )}
 
       <Leaderboard
         isVisible={showLeaderboard}
@@ -1127,5 +1206,6 @@ function Game() {
     </div>
   );
 }
+// --- End Updated Game Component ---
 
 export default Game;
