@@ -430,7 +430,7 @@ function Terrain({
   const lastCleanup = useRef(playerZ);
   
   // Load the snow texture
-  const snowTexture = useLoader(THREE.TextureLoader, '/snow-texture.png'); // Assuming the texture is in the public folder
+  const snowTexture = useLoader(THREE.TextureLoader, '/public/snow-texture.png'); // Assuming the texture is in the public folder
 
   // Configure texture wrapping and repetition
   useEffect(() => {
