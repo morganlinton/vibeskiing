@@ -431,7 +431,7 @@ function Terrain({
   const lastCleanup = useRef(playerZ);
   
   // Load the snow texture
-  const snowTexture = useLoader(THREE.TextureLoader, 'https://raw.githubusercontent.com/morganlinton/vibeskiing-files/refs/heads/main/snow-texture.png'); 
+  const snowTexture = useLoader(THREE.TextureLoader, '/snow-texture.png');
 
   // Configure texture wrapping and repetition
   useEffect(() => {

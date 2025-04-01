@@ -3,11 +3,11 @@ import * as THREE from 'three';
 
 // GLB model URLs
 export const MODEL_URLS = {
-  tree: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/tree.glb',
-  skier: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/skier.glb',
-  rock: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/rock.glb',
-  pole: 'https://raw.githubusercontent.com/MetaverseMorgan/glbfiles/main/pole.glb',
-  yeti: 'https://raw.githubusercontent.com/morganlinton/vibeskiing-files/main/snow-yeti.glb'
+  tree: '/tree.glb',
+  skier: '/skier.glb',
+  rock: '/rock.glb',
+  pole: '/pole.glb',
+  yeti: '/snow-yeti.glb'
   //yeti: '/public/snow-yeti.glb'
 } as const;
 
