@@ -18,8 +18,14 @@ export default function Leaderboard({ isVisible, currentScore, currentTime, onRe
   useEffect(() => {
     if (isVisible) {
       const checkScore = async () => {
+        // Check if score qualifies for top 10
+        // This will return true if:
+        // 1. There are fewer than 10 scores on the leaderboard
+        // 2. OR the player's score is higher than the lowest score in the top 10
         const isHigh = await checkHighScore(currentScore);
         setIsHighScore(isHigh);
+        
+        // Get the current leaderboard to display
         const board = await getLeaderboard();
         setLeaderboard(board);
         setIsLoading(false);
@@ -61,7 +67,7 @@ export default function Leaderboard({ isVisible, currentScore, currentTime, onRe
           <>
             {isHighScore && !hasSubmitted && (
               <form onSubmit={handleSubmit} className="mb-6">
-                <h3 className="text-white text-lg mb-2">New High Score!</h3>
+                <h3 className="text-white text-lg mb-2">You Made the Top 10!</h3>
                 <div className="flex gap-2">
                   <input
                     type="text"
